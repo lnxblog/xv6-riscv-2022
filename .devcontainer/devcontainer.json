@@ -1,0 +1,18 @@
+{
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": {
+  },
+  "build": { "dockerfile": "Dockerfile" },
+  "customizations": {
+    "codespaces": {
+      "repositories": {
+        "lnxblog/xv6-riscv": {
+          "permissions": "write-all"
+        },
+        "lnxblog/xv6-riscv-2022": {
+          "permissions": "write-all"
+        }  
+      }
+    }
+  }
+}
