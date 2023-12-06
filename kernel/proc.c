@@ -26,6 +26,17 @@ extern char trampoline[]; // trampoline.S
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
 
+uint64 usedproc_cnt()
+{
+  int cnt = 0;
+  struct proc *p;
+  for(p = proc; p < &proc[NPROC]; p++) {    
+    if(p->state != UNUSED)
+    cnt++;
+  }
+  return cnt;
+}
+
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
@@ -245,7 +256,7 @@ userinit(void)
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
-
+  p->trapframe->trace = 0;
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
@@ -301,6 +312,7 @@ fork(void)
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
+  np->trapframe->trace = p->trapframe->trace;
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)

@@ -6,6 +6,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "syscall.h"
+#include "sysinfo.h"
 uint64
 sys_exit(void)
 {
@@ -99,8 +100,22 @@ sys_trace()
   int mask;
   argint(0,&mask); // get syscall mask
 
-  int max = 1<<SYS_trace;
-  if(mask > max)return -1;
+  //int max = 1<<SYS_trace;
+  //if(mask > max)return -1;
+  struct proc *p = myproc();
+  p->trapframe->trace = mask;
+  return 0;
+}
 
+uint64 sys_sysinfo()
+{
+  uint64 paddr;
+  argaddr(0,&paddr);
+  struct sysinfo ksinfo;
+  ksinfo.freemem = avail_mem();
+  ksinfo.nproc = usedproc_cnt();
+  struct proc *p = myproc();
+  if(copyout(p->pagetable, paddr, (char *)&ksinfo, sizeof(struct sysinfo)) < 0)
+    return -1;
   return 0;
 }
