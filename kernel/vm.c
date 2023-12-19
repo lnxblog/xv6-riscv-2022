@@ -286,6 +286,31 @@ freewalk(pagetable_t pagetable)
   kfree((void*)pagetable);
 }
 
+void vmprint(pagetable_t tbl)
+{
+  // 9 bits or 2^9 = 512 PTEs in a table
+
+  //printf("page table %p\n",tbl);
+  for(int i = 0; i < 512; i++){
+
+    pte_t pte = tbl[i];
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){ 
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+      printf("..%d: pte %p pa %p\n",i,pte,child);
+      printf(".. ");
+      vmprint((pagetable_t)child);
+    }
+    else if(pte & PTE_V)
+    {
+      uint64 child = PTE2PA(pte);
+      printf("..%d: pte %p pa %p\n",i,pte,child);
+    }
+  }
+
+}
+
+
 // Free user memory pages,
 // then free page-table pages.
 void
@@ -437,3 +462,5 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+

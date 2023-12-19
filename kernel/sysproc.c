@@ -75,6 +75,31 @@ int
 sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
+  int user_mem;
+  int pages;
+  uint64 user_bitfield_addr;
+  argint(0,&user_mem);
+  argint(1,&pages);
+  argaddr(2,&user_bitfield_addr);
+
+  if(pages > 32)return -1 // user result argument is of 32 bits
+  struct proc *p = myproc();
+  uint res = 0;
+  pte_t *pte;
+  for(int i=0; i < pages; i++ )
+  {
+    pte = walk(p->pagetable,user_mem,0);
+    if(pte!=0 && *pte & PTE_A)
+    {
+      res |= (1<<i);
+      *pte = *pte & ~PTE_A;
+    }
+    user_mem += PGSIZE;
+  }
+  printf("%x\n",res);
+  copyout(p->pagetable, user_bitfield_addr, (char*)&res, sizeof(uint));
+
+
   return 0;
 }
 #endif

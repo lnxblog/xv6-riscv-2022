@@ -3,13 +3,14 @@
 #include "kernel/types.h"
 #include "kernel/riscv.h"
 #include "user/user.h"
-
+#include "kernel/memlayout.h"
 void ugetpid_test();
 void pgaccess_test();
 
 int
 main(int argc, char *argv[])
 {
+    printf("usyscall addr %p\n",USYSCALL);
   ugetpid_test();
   pgaccess_test();
   printf("pgtbltest: all tests succeeded\n");
