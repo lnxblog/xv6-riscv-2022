@@ -133,3 +133,19 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+
+/* Traps lab assignment */
+void backtrace()
+{
+  uint64 *fp = (uint64*)r_fp();
+  uint64 base_pg = PGROUNDDOWN((uint64)fp);
+  uint64 *ret_ptr;
+  printf("backtrace:\n");
+  while(base_pg == PGROUNDDOWN((uint64)fp))
+  {
+    ret_ptr = ((uint64*)((char*)fp-8));
+    printf("%p\n",*ret_ptr);
+    fp = (uint64*)(*((uint64*)((char*)fp-16)));
+  }
+
+}

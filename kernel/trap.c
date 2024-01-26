@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 
+
 struct spinlock tickslock;
 uint ticks;
 
@@ -67,6 +68,51 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+    if(which_dev == 2 && p->interval != 0)
+    {
+      p->ticks++;
+      printf("tick\n");
+      if(p->ticks >= p->interval && !p->handler_active)
+      {
+        // call alarm handler
+
+        p->alarm_regs.epc = p->trapframe->epc;
+        p->alarm_regs.ra = p->trapframe->ra;
+        p->alarm_regs.sp = p->trapframe->sp;
+        p->alarm_regs.gp = p->trapframe->gp;
+        p->alarm_regs.tp = p->trapframe->tp;
+        p->alarm_regs.t0 = p->trapframe->t0;
+        p->alarm_regs.t1 = p->trapframe->t1;
+        p->alarm_regs.t2 = p->trapframe->t2;
+        p->alarm_regs.s0 = p->trapframe->s0;
+        p->alarm_regs.s1 = p->trapframe->s1;
+        p->alarm_regs.a0 = p->trapframe->a0;
+        p->alarm_regs.a1 = p->trapframe->a1;
+        p->alarm_regs.a2 = p->trapframe->a2;
+        p->alarm_regs.a3 = p->trapframe->a3;
+        p->alarm_regs.a4 = p->trapframe->a4;
+        p->alarm_regs.a5 = p->trapframe->a5;
+        p->alarm_regs.a6 = p->trapframe->a6;
+        p->alarm_regs.a7 = p->trapframe->a7;
+        p->alarm_regs.s2 = p->trapframe->s2;
+        p->alarm_regs.s3 = p->trapframe->s3;
+        p->alarm_regs.s4 = p->trapframe->s4;
+        p->alarm_regs.s5 = p->trapframe->s5;
+        p->alarm_regs.s6 = p->trapframe->s6;
+        p->alarm_regs.s7 = p->trapframe->s7;
+        p->alarm_regs.s8 = p->trapframe->s8;
+        p->alarm_regs.s9 = p->trapframe->s9;
+        p->alarm_regs.s10 = p->trapframe->s10;
+        p->alarm_regs.s11 = p->trapframe->s11;
+        p->alarm_regs.t4 = p->trapframe->t4;
+        p->alarm_regs.t5 = p->trapframe->t5;
+        p->alarm_regs.t6 = p->trapframe->t6;
+        p->trapframe->epc = p->alarm_handler;
+        p->ticks = 0;
+        p->handler_active = 1;
+      }
+    }
+
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -78,7 +124,9 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
+  {
     yield();
+  }
 
   usertrapret();
 }
