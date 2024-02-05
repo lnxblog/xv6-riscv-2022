@@ -12,7 +12,7 @@
 void freerange(void *pa_start, void *pa_end);
 
 extern char end[]; // first address after kernel.
-                   // defined by kernel.ld.
+                  // defined by kernel.ld.
 
 struct run {
   struct run *next;
@@ -23,6 +23,7 @@ struct {
   struct run *freelist;
 } kmem;
 
+int pg_refcount[32768];
 void
 kinit()
 {
@@ -47,7 +48,11 @@ void
 kfree(void *pa)
 {
   struct run *r;
-
+  uint64 offset = (uint64)pa - (uint64)end;
+  offset = offset >> 12;
+  pg_refcount[offset]--;
+  //printf("kfree: refcount for %p %d %d\n",pa,offset,pg_refcount[offset]);
+  if(pg_refcount[offset]>0)return;
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
@@ -75,7 +80,11 @@ kalloc(void)
   if(r)
     kmem.freelist = r->next;
   release(&kmem.lock);
-
+  uint64 offset = (uint64)r - (uint64)end;
+  offset = offset >> 12;
+  //printf("kalloc: %p %d\n",r,offset);
+  pg_refcount[offset] = 1;
+  
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;

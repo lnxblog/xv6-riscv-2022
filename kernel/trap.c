@@ -28,7 +28,65 @@ trapinithart(void)
 {
   w_stvec((uint64)kernelvec);
 }
+extern char end[]; 
+extern int pg_refcount[];
+int pg_fault_handler()
+{
+  pte_t *pte;
+  uint64 pa;
+  uint flags;
+  char *mem;
+  pagetable_t pgtbl;
+  struct proc *p = myproc();
+  uint64 va = PGROUNDDOWN(r_stval());
+  pgtbl = p->pagetable;
 
+  if((pte = walk(pgtbl, va, 0)) == 0)
+    panic("pg_fault_handler: pte should exist");
+  if((*pte & PTE_V) == 0)
+    panic("pg_fault_handler: page not present");
+  pa = PTE2PA(*pte);
+  flags = PTE_FLAGS(*pte);
+  //printf("creating page for pid:%d va:%p at pc:%p\n",p->pid,va,r_sepc());
+
+  flags |= PTE_W;
+  flags &= ~RSW_1;
+
+  uint64 offset = (uint64)pa - (uint64)end; 
+  offset = offset >> 12;
+  if(pg_refcount[offset] > 1)
+  {
+    /*if(!(flags & RSW_1))
+    {
+      printf("not cow\n");
+      return 0;
+    }*/
+
+
+    if((mem = kalloc()) == 0)
+    {
+      printf("kalloc fail\n");
+        goto err;
+    }
+
+    memmove(mem, (char*)pa, PGSIZE);
+
+    pg_refcount[offset]--;
+
+    offset = (uint64)mem - (uint64)end;
+    offset = offset >> 12;
+    pg_refcount[offset]=1;
+
+    *pte = PA2PTE(mem) | flags;
+  }
+  else
+    *pte = PA2PTE(pa) | flags;
+
+
+  return 0;
+  err:
+    return -1;
+}
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -67,7 +125,12 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  } 
+  else if (r_scause() == 0xf)
+  {
+    pg_fault_handler();
+  }
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     setkilled(p);

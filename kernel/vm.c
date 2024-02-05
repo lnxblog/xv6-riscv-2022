@@ -295,7 +295,8 @@ uvmfree(pagetable_t pagetable, uint64 sz)
     uvmunmap(pagetable, 0, PGROUNDUP(sz)/PGSIZE, 1);
   freewalk(pagetable);
 }
-
+extern char end[]; 
+extern int pg_refcount[];
 // Given a parent process's page table, copy
 // its memory into a child's page table.
 // Copies both the page table and the
@@ -317,11 +318,33 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
+
+    if(0)
+    {
+      if((mem = kalloc()) == 0)
+        goto err;
+      memmove(mem, (char*)pa, PGSIZE);
+      printf("new %p %p\n",i,mem);
+    }
+    else
+    {
+      mem  = (char*)pa;
+      if(flags & PTE_W)
+      {
+        //printf("writable\n");
+        flags = flags & (~PTE_W);
+        flags |= RSW_1;
+        *pte = PA2PTE(pa) | flags | PTE_V;
+      }
+      
+      //printf("old %p %p %x\n",i,pa,flags);
+    }
+    uint64 offset = (uint64)pa - (uint64)end;
+    offset = offset >> 12;
+    pg_refcount[offset]++;
     if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
       kfree(mem);
+      printf("uvmcopy err");
       goto err;
     }
   }
@@ -351,13 +374,49 @@ uvmclear(pagetable_t pagetable, uint64 va)
 int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
-  uint64 n, va0, pa0;
-
+  uint64 n, va0, pa0,old_pa;
+  char *mem;
+  uint flags;
+  pte_t *pte;
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
+
+    if((pte = walk(pagetable, va0, 0)) == 0)
+      panic("pg_fault_handler: pte should exist");
+    if((*pte & PTE_V) == 0)
+      panic("pg_fault_handler: page not present");
+
+    pa0 = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte);
+    //printf("copyout\n");
+    if(flags & RSW_1) // cow page: allocate new page and copy old contents
+    {
+      printf("copyout: creating new page for va:%p pc:%p\n",va0,r_sepc());
+      flags |= PTE_W;
+      flags &= ~RSW_1;
+      old_pa = pa0;
+      if((mem = kalloc())==0)
+      {
+        printf("kalloc fail\n");
+        return -1;
+      }
+      pa0 = (uint64)mem;
+      memmove((char*)pa0,(char*)old_pa,PGSIZE);
+
+      *pte = PA2PTE(pa0) | flags;  // set new pte value
+
+
+        uint64 offset = (uint64)old_pa - (uint64)end; // decrement ref count on original
+        offset = offset >> 12;
+        pg_refcount[offset]--;
+
+        offset = (uint64)pa0 - (uint64)end;
+        offset = offset >> 12;
+        pg_refcount[offset]=1;
+    }
+  //  pa0 = walkaddr(pagetable, va0);
+ //   if(pa0 == 0)
+ //     return -1;
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;

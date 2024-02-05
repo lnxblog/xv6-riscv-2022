@@ -142,6 +142,7 @@ filetest()
       exit(-1);
     }
     if(pid == 0){
+      printf("child %d\n",i);
       sleep(1);
       if(read(fds[0], buf, sizeof(i)) != sizeof(i)){
         printf("error: read failed\n");
@@ -150,11 +151,12 @@ filetest()
       sleep(1);
       int j = *(int*)buf;
       if(j != i){
-        printf("error: read the wrong value\n");
+        printf("error: read the wrong value exp %d act %d\n",i,j);
         exit(1);
       }
       exit(0);
     }
+    //printf("write %d\n",i);
     if(write(fds[1], &i, sizeof(i)) != sizeof(i)){
       printf("error: write failed\n");
       exit(-1);
@@ -186,6 +188,7 @@ main(int argc, char *argv[])
   simpletest();
 
   threetest();
+  //sleep(40);
   threetest();
   threetest();
 
