@@ -21,6 +21,7 @@ static volatile uint32 *regs;
 
 struct spinlock e1000_lock;
 
+
 // called by pci_init().
 // xregs is the memory address at which the
 // e1000's registers are mapped.
@@ -95,6 +96,7 @@ e1000_init(uint32 *xregs)
 int
 e1000_transmit(struct mbuf *m)
 {
+
   //
   // Your code here.
   //
@@ -102,7 +104,19 @@ e1000_transmit(struct mbuf *m)
   // the TX descriptor ring so that the e1000 sends it. Stash
   // a pointer so that it can be freed after sending.
   //
-  
+
+  int tail = regs[E1000_TDT];
+  printf("got packet\n");
+
+  if(tx_mbufs[tail] && tx_ring[tail].status & E1000_TXD_STAT_DD)
+    mbuffree(tx_mbufs[tail]);
+
+  tx_mbufs[tail] = m;
+  tx_ring[tail].addr = (uint64)m->head;
+  tx_ring[tail].length = m->len;
+  tx_ring[tail].status |= E1000_TXD_CMD_EOP;
+  regs[E1000_TDT] = (tail+1)%16;
+  printf("here %d %d\n",regs[E1000_TDT],regs[E1000_TDH]);
   return 0;
 }
 
@@ -115,6 +129,7 @@ e1000_recv(void)
   // Check for packets that have arrived from the e1000
   // Create and deliver an mbuf for each packet (using net_rx()).
   //
+  printf("receive\n");
 }
 
 void
@@ -124,6 +139,6 @@ e1000_intr(void)
   // without this the e1000 won't raise any
   // further interrupts.
   regs[E1000_ICR] = 0xffffffff;
-
+  printf("got interrupt");
   e1000_recv();
 }
