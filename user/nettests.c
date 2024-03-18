@@ -47,7 +47,7 @@ ping(uint16 sport, uint16 dport, int attempts)
     exit(1);
   }
 }
-
+#if 1
 // Encode a DNS name
 static void
 encode_qname(char *qn, char *host)
@@ -255,7 +255,7 @@ dns()
 
   close(fd);
 }  
-
+#endif
 int
 main(int argc, char *argv[])
 {
@@ -289,7 +289,9 @@ main(int argc, char *argv[])
   printf("OK\n");
   
   printf("testing DNS\n");
+  #if 1
   dns();
+  #endif
   printf("DNS OK\n");
   
   printf("all tests passed.\n");

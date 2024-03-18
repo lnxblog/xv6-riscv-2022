@@ -91,6 +91,13 @@ e1000_init(uint32 *xregs)
   regs[E1000_RDTR] = 0; // interrupt after every received packet (no timer)
   regs[E1000_RADV] = 0; // interrupt after every packet (no timer)
   regs[E1000_IMS] = (1 << 7); // RXDW -- Receiver Descriptor Write Back
+  /*
+  regs[E1000_CTL] = 0;
+  regs[E1000_CTL] |= E1000_CTL_SLU | E1000_CTL_FRCDPLX | E1000_CTL_FRCSPD;
+  regs[E1000_CTL] &= SPD_10MB;
+  regs[E1000_CTL] |= 1;
+  printf("CTL %x %x\n",regs[E1000_CTL],regs[E1000_STA]&0xFFF);
+  */
 }
 
 int
@@ -104,20 +111,38 @@ e1000_transmit(struct mbuf *m)
   // the TX descriptor ring so that the e1000 sends it. Stash
   // a pointer so that it can be freed after sending.
   //
-
+  int ret=0;
+  acquire(&e1000_lock);
   int tail = regs[E1000_TDT];
-  printf("got packet\n");
+  if( ((tail + 1)%16) == regs[E1000_TDH])
+  {
+    ret = -1;
+    goto end;
+  }
+  
 
-  if(tx_mbufs[tail] && tx_ring[tail].status & E1000_TXD_STAT_DD)
+  if(!tx_ring[tail].status & E1000_TXD_STAT_DD)
+  {
+    ret = -1;
+    goto end;
+  }
+  
+
+  if(tx_mbufs[tail])
     mbuffree(tx_mbufs[tail]);
 
   tx_mbufs[tail] = m;
   tx_ring[tail].addr = (uint64)m->head;
   tx_ring[tail].length = m->len;
-  tx_ring[tail].status |= E1000_TXD_CMD_EOP;
+  tx_ring[tail].cmd |= E1000_TXD_CMD_EOP | E1000_TXD_CMD_RS;
+ // printf("here %d %d\n",regs[E1000_TDT],regs[E1000_TDH]);
   regs[E1000_TDT] = (tail+1)%16;
-  printf("here %d %d\n",regs[E1000_TDT],regs[E1000_TDH]);
-  return 0;
+  //printf("here %d %d\n",regs[E1000_TDT],regs[E1000_TDH]);
+
+  end:
+  release(&e1000_lock);
+  //printf("send packet\n");
+  return ret;
 }
 
 static void
@@ -129,7 +154,29 @@ e1000_recv(void)
   // Check for packets that have arrived from the e1000
   // Create and deliver an mbuf for each packet (using net_rx()).
   //
-  printf("receive\n");
+   regs[E1000_IMC] = (1 << 7); // disable interrupt
+   
+  struct mbuf *to_send;
+  int tail = regs[E1000_RDT];
+  tail = (tail+1)%16;
+  while(rx_ring[tail].status & E1000_RXD_STAT_DD)
+  {
+    to_send = rx_mbufs[tail];
+    to_send->len = rx_ring[tail].length;
+
+    rx_mbufs[tail] = mbufalloc(0);
+    rx_ring[tail].addr = (uint64) rx_mbufs[tail]->head;
+    rx_ring[tail].status &= ~E1000_RXD_STAT_DD;
+    regs[E1000_RDT] = tail;
+    net_rx(to_send);
+    //printf("receive packet\n");
+    tail = (tail+1)%16;
+  }
+  
+
+  regs[E1000_IMS] = (1 << 7);
+   
+
 }
 
 void
@@ -139,6 +186,6 @@ e1000_intr(void)
   // without this the e1000 won't raise any
   // further interrupts.
   regs[E1000_ICR] = 0xffffffff;
-  printf("got interrupt");
+  //printf("got intr\n");
   e1000_recv();
 }
